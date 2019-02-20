@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <HardwareSerial.h>
+#include "Adafruit_BME280.h"
 
 AsyncWebServer server(80);
 HardwareSerial co2Sensor(1);
@@ -12,6 +13,18 @@ unsigned int ppm;
 
 const char* WIFI_SSID; //set wifi name here
 const char* WIFI_PASSWORD; //set wifi pass here
+
+#define ALTITUDE 152.0
+
+#define I2C_SDA 27
+#define I2C_SCL 26
+#define BME280_ADDRESS 0x76
+
+float temperature = 0;
+float humidity = 0;
+float pressure = 0;
+
+Adafruit_BME280 bme(I2C_SDA, I2C_SCL);
 
 void notFound(AsyncWebServerRequest *request) {
     request->send(404, "application/json", "{\"error\":\"Page not found\"}");
@@ -63,6 +76,30 @@ void calculateAndPrintPpm() {
     Serial.print("\n");
 }
 
+void initBmeSensor() {
+    bool status = bme.begin(BME280_ADDRESS);
+    if (!status) {
+        Serial.println("Could not find a valid BME280 sensor, check wiring!");
+    }
+}
+
+void messureTemperature() {
+    temperature = bme.readTemperature();
+    Serial.println(temperature);
+}
+
+void messureHumidity() {
+    humidity = bme.readHumidity();
+    Serial.println(humidity);
+}
+
+void messurePressure() {
+    pressure = bme.readPressure();
+    pressure = bme.seaLevelForAltitude(ALTITUDE, pressure);
+    pressure = pressure/100.0F;
+    Serial.println(pressure);
+}
+
 void setup() {
     Serial.begin(115200);
     connectWifi();
@@ -72,11 +109,17 @@ void setup() {
     co2PpmHandler();
     server.onNotFound(notFound);
     server.begin();
+
+    initBmeSensor();
 }
 
 void loop() {
     readCo2SensorValueToCo2Response();
     printHexRespond();
     calculateAndPrintPpm();
+
+    messureTemperature();
+    messureHumidity();
+    messurePressure();
     delay(10000);
 }
